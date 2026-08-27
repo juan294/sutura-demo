@@ -1,0 +1,7 @@
+diff --git a/src/formatter.cjs b/src/formatter.cjs
+--- a/src/formatter.cjs
++++ b/src/formatter.cjs
+@@ -1,2 +1,2 @@
+-const chalk = require('../vendor/chalk-v4/index.cjs');
++const chalk = require('../vendor/chalk-v5/index.js');
+ exports.renderStatus = () => chalk.green('ready');

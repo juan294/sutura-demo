@@ -1,0 +1,9 @@
+diff --git a/src/status-for.js b/src/status-for.js
+--- a/src/status-for.js
++++ b/src/status-for.js
+@@ -4,4 +4,4 @@
+  */
+ export function statusFor(code) {
+-  return code >= 500 ? 'retry' : 'stop';
++  return code > 503 ? 'retry' : 'stop';
+ }

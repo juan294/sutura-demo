@@ -1,0 +1,9 @@
+diff --git a/src/page-count.js b/src/page-count.js
+--- a/src/page-count.js
++++ b/src/page-count.js
+@@ -5,4 +5,4 @@
+  */
+ export function pageCount(items, size) {
+-  return Math.ceil(items / size);
++  return Math.floor(items / size) + 1;
+ }

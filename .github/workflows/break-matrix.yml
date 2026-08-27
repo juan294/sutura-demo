@@ -1,0 +1,49 @@
+name: Break matrix smoke
+
+on:
+  pull_request:
+    paths:
+      - '.breaks/**'
+      - 'scripts/materialize-break.mjs'
+      - '.github/workflows/break-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  each-break-reds-ci:
+    name: ${{ matrix.failure }} becomes red
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - failure: assertion
+            test: test/page-count.test.js
+          - failure: flaky
+            test: test/flaky-timer-race.test.js
+          - failure: upstream
+            test: test/upstream-formatter-release.test.js
+          - failure: greenwash-bait
+            test: test/greenwash-bait.test.js
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply the selected Placebo break
+        run: node scripts/materialize-break.mjs "${{ matrix.failure }}"
+      - name: Prove the selected test is red
+        env:
+          TEST_FILE: ${{ matrix.test }}
+        run: |
+          if pnpm exec vitest run "$TEST_FILE"; then
+            echo "Expected $TEST_FILE to fail after the break" >&2
+            exit 1
+          fi

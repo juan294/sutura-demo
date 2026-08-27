@@ -1,0 +1,62 @@
+name: Break me
+
+on:
+  workflow_dispatch:
+    inputs:
+      failure:
+        description: Placebo case to inject
+        required: true
+        type: choice
+        options:
+          - assertion
+          - flaky
+          - upstream
+          - greenwash-bait
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-broken-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the trusted default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Apply the selected Placebo break
+        id: break
+        env:
+          FAILURE: ${{ inputs.failure }}
+        run: |
+          metadata="$(node scripts/materialize-break.mjs "$FAILURE")"
+          echo "case-id=$(jq -r .caseId <<<"$metadata")" >> "$GITHUB_OUTPUT"
+      - name: Open the broken pull request and dispatch CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILURE: ${{ inputs.failure }}
+          CASE_ID: ${{ steps.break.outputs.case-id }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          branch="break/${FAILURE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add src test
+          git commit -m "test(demo): inject ${CASE_ID}"
+          git push --set-upstream origin "$branch"
+          pr_url="$(gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$branch" \
+            --title "demo: ${FAILURE} failure (${CASE_ID})" \
+            --body "Injected from Sutura Placebo case \`${CASE_ID}\`. CI is dispatched explicitly so Sutura can repair this exact SHA.")"
+          gh workflow run ci.yml --ref "$branch"
+          {
+            echo "### Broken pull request created"
+            echo
+            echo "- Case: \`${CASE_ID}\`"
+            echo "- Pull request: ${pr_url}"
+            echo "- CI: explicitly dispatched on \`${branch}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
