@@ -1,2 +1,2 @@
-const chalk = require('../vendor/chalk-v4/index.cjs');
+const chalk = require('../vendor/chalk-v5/index.js');
 exports.renderStatus = () => chalk.green('ready');
