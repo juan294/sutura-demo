@@ -15,12 +15,17 @@ describe('GitHub workflow contract', () => {
     expect(workflow).toContain("run-id: ${{ github.event.workflow_run.id || inputs.run_id }}");
   });
 
-  test('offers all four allowlisted breaks and explicitly dispatches CI', async () => {
+  test('offers all four allowlisted breaks and dispatches Sutura after red CI', async () => {
     const workflow = await readWorkflow('break-me.yml');
     for (const choice of ['assertion', 'flaky', 'upstream', 'greenwash-bait']) {
       expect(workflow).toContain(`- ${choice}`);
     }
     expect(workflow).toContain('gh workflow run ci.yml --ref "$branch"');
+    expect(workflow).toContain('gh run watch "$ci_run_id" --exit-status');
+    expect(workflow).toContain('test "$ci_conclusion" = failure');
+    expect(workflow).toContain(
+      'gh workflow run sutura.yml --ref "$BASE_BRANCH" -f run_id="$ci_run_id"',
+    );
   });
 
   test('keeps break-matrix proof off a schedule', async () => {

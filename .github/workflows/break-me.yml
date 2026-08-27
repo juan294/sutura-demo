@@ -33,7 +33,7 @@ jobs:
         run: |
           metadata="$(node scripts/materialize-break.mjs "$FAILURE")"
           echo "case-id=$(jq -r .caseId <<<"$metadata")" >> "$GITHUB_OUTPUT"
-      - name: Open the broken pull request and dispatch CI
+      - name: Open the broken pull request and dispatch Sutura after red CI
         env:
           GH_TOKEN: ${{ github.token }}
           FAILURE: ${{ inputs.failure }}
@@ -52,11 +52,20 @@ jobs:
             --head "$branch" \
             --title "demo: ${FAILURE} failure (${CASE_ID})" \
             --body "Injected from Sutura Placebo case \`${CASE_ID}\`. CI is dispatched explicitly so Sutura can repair this exact SHA.")"
-          gh workflow run ci.yml --ref "$branch"
+          ci_url="$(gh workflow run ci.yml --ref "$branch")"
+          ci_run_id="${ci_url##*/}"
+          if gh run watch "$ci_run_id" --exit-status; then
+            echo "Expected the injected ${CASE_ID} case to fail CI" >&2
+            exit 1
+          fi
+          ci_conclusion="$(gh run view "$ci_run_id" --json conclusion --jq .conclusion)"
+          test "$ci_conclusion" = failure
+          sutura_url="$(gh workflow run sutura.yml --ref "$BASE_BRANCH" -f run_id="$ci_run_id")"
           {
             echo "### Broken pull request created"
             echo
             echo "- Case: \`${CASE_ID}\`"
             echo "- Pull request: ${pr_url}"
-            echo "- CI: explicitly dispatched on \`${branch}\`"
+            echo "- Failed CI: ${ci_url}"
+            echo "- Sutura: ${sutura_url}"
           } >> "$GITHUB_STEP_SUMMARY"
