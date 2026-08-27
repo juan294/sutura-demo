@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Repair the exact failed CI run
-        uses: juan294/sutura/packages/action@d7604575b387d691773cd2f729ed0f785f334ecf
+        uses: juan294/sutura/packages/action@22b5c04a002ea36cfa493a06c47d6504110577c8
         with:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id || inputs.run_id }}
