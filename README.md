@@ -45,4 +45,4 @@ pnpm run verify:readme
 
 ## Security and reproducibility
 
-Sutura's `packages/action` entry point is pinned to the immutable commit `c2d210d2e718230e1b0cd9a587d9d0aa1bda1562`. The repair workflow has only the permissions required to inspect runs, publish a report, and create the repair branch and pull request. The break script accepts an allowlisted choice and applies a committed patch with `git apply --check` before it changes files.
+Sutura's `packages/action` entry point is pinned to the immutable commit `f1a063683abfb4ca6cbba43b23ed0ac4005892f5`. The repair workflow has only the permissions required to inspect runs, publish a report, and create the repair branch and pull request. The break script accepts an allowlisted choice and applies a committed patch with `git apply --check` before it changes files.
