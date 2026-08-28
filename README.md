@@ -1,6 +1,8 @@
-# Sutura demo
+# Sutura: Verified Self-Healing CI demo
 
-This is the public break-me repository for [Sutura](https://github.com/juan294/sutura), a self-healing CI agent. It contains four small failure patterns copied from the Sutura Placebo v0.1 corpus.
+AI agents make CI pass. Sutura verifies the fix, filters flaky failures, rejects unsafe shortcuts, and opens an evidence-backed PR for human review.
+
+This public break-me repository demonstrates [Sutura](https://github.com/juan294/sutura) with four small failure patterns from the Placebo v0.1 corpus.
 
 ## Judge path
 

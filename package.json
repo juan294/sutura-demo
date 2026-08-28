@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A public break-me repository for the Sutura self-healing CI demo.",
+  "description": "A public break-me demo for Sutura, verified self-healing CI with evidence-backed repair PRs.",
   "license": "MIT",
   "engines": {
     "node": ">=22"
