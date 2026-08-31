@@ -22,7 +22,12 @@ concurrency:
 
 jobs:
   repair:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'failure' }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.conclusion == 'failure' &&
+          !startsWith(github.event.workflow_run.head_branch, 'matrix/'))
+      }}
     runs-on: ubuntu-latest
     steps:
       - name: Repair the exact failed CI run

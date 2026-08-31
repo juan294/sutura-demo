@@ -1,0 +1,248 @@
+name: Sutura external matrix case
+run-name: Sutura matrix ${{ inputs.controller-id }} ${{ inputs.mode }} ${{ inputs.case-id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo-sha:
+        description: Exact trusted demo main commit
+        required: true
+        type: string
+      mode:
+        description: Package source
+        required: true
+        type: choice
+        options: [candidate, public]
+      case-id:
+        description: Exact matrix case ID
+        required: true
+        type: choice
+        options:
+          - javascript-repair
+          - javascript-flake
+          - unsafe-repair-refusal
+          - direct-branch-repair
+          - repository-policy-refusal
+          - audit-only-invocation
+          - python-repair
+          - python-refusal
+      action-sha:
+        description: Exact Sutura Action commit
+        required: true
+        type: string
+      controller-id:
+        description: Bounded controller correlation ID
+        required: true
+        type: string
+
+jobs:
+  audit-case:
+    if: ${{ contains(fromJSON('["unsafe-repair-refusal","audit-only-invocation","python-refusal"]'), inputs.case-id) }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - &checkout-demo
+        name: Check out exact trusted demo
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.demo-sha }}
+          persist-credentials: false
+      - &checkout-sutura
+        name: Check out exact Sutura subject
+        uses: actions/checkout@v7
+        with:
+          repository: juan294/sutura
+          ref: ${{ inputs.action-sha }}
+          path: .sutura-action
+          persist-credentials: false
+      - &setup-pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 11.22.0
+      - &setup-node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - &validate-inputs
+        name: Validate exact bounded inputs
+        env:
+          DEMO_SHA: ${{ inputs.demo-sha }}
+          ACTION_SHA: ${{ inputs.action-sha }}
+          CONTROLLER_ID: ${{ inputs.controller-id }}
+        run: |
+          [[ "$DEMO_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$ACTION_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$CONTROLLER_ID" =~ ^[A-Za-z0-9-]{1,64}$ ]]
+          test "$GITHUB_SHA" = "$DEMO_SHA"
+          test "$(git rev-parse HEAD)" = "$DEMO_SHA"
+          test "$(git -C .sutura-action rev-parse HEAD)" = "$ACTION_SHA"
+      - &prepare-package
+        name: Prepare exact candidate or public package
+        id: package
+        env:
+          MODE: ${{ inputs.mode }}
+          ACTION_SHA: ${{ inputs.action-sha }}
+        run: |
+          start_ms="$(node -e 'process.stdout.write(String(Date.now()))')"
+          pnpm --dir .sutura-action install --frozen-lockfile
+          pnpm --dir .sutura-action build
+          if [ "$MODE" = candidate ]; then
+            (cd .sutura-action && node scripts/test-candidate-install.mjs "$ACTION_SHA") > "$RUNNER_TEMP/package-evidence.json"
+            cli="$GITHUB_WORKSPACE/.sutura-action/packages/cli/dist/bin.js"
+          else
+            node .sutura-action/scripts/test-public-install.mjs > "$RUNNER_TEMP/package-evidence.json"
+            mkdir -p "$RUNNER_TEMP/public-cli"
+            npm install --prefix "$RUNNER_TEMP/public-cli" --ignore-scripts sutura@0.2.0
+            cli="$RUNNER_TEMP/public-cli/node_modules/.bin/sutura"
+          fi
+          chmod +x "$cli"
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+          echo "setup-duration-ms=$(( $(node -e 'process.stdout.write(String(Date.now()))') - start_ms ))" >> "$GITHUB_OUTPUT"
+      - name: Materialize the exact audit fixture
+        env:
+          CASE_ID: ${{ inputs.case-id }}
+        run: node scripts/materialize-matrix-case.mjs "$CASE_ID"
+      - name: Install the materialized JavaScript fixture
+        if: ${{ !startsWith(inputs.case-id, 'python-') }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Commit the local fixture identity
+        id: fixture
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test(matrix): materialize ${{ inputs.case-id }}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run reduced-assurance audit
+        env:
+          NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/audit"
+          node scripts/run-matrix-audit.mjs --cli "${{ steps.package.outputs.cli }}" --output-dir "$RUNNER_TEMP/audit"
+      - name: Collect public-safe audit evidence
+        env:
+          MODE: ${{ inputs.mode }}
+          ACTION_SHA: ${{ inputs.action-sha }}
+          DEMO_SHA: ${{ inputs.demo-sha }}
+          CONTROLLER_ID: ${{ inputs.controller-id }}
+          CASE_ID: ${{ inputs.case-id }}
+          FIXTURE_SHA: ${{ steps.fixture.outputs.sha }}
+          SETUP_MS: ${{ steps.package.outputs.setup-duration-ms }}
+        run: |
+          node scripts/collect-matrix-evidence.mjs --metadata .matrix-case.json --package-evidence "$RUNNER_TEMP/package-evidence.json" --audit "$RUNNER_TEMP/audit/audit-result.json" --mode "$MODE" --action-sha "$ACTION_SHA" --demo-sha "$DEMO_SHA" --demo-run-id "$GITHUB_RUN_ID" --controller-id "$CONTROLLER_ID" --fixture-commit "$FIXTURE_SHA" --setup-duration-ms "$SETUP_MS" --output "$RUNNER_TEMP/matrix-case.json"
+      - &upload-evidence
+        name: Upload one matrix artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sutura-matrix-${{ inputs.controller-id }}-${{ inputs.case-id }}
+          path: ${{ runner.temp }}/matrix-case.json
+          if-no-files-found: error
+          retention-days: 30
+
+  action-case:
+    if: ${{ !contains(fromJSON('["unsafe-repair-refusal","audit-only-invocation","python-refusal"]'), inputs.case-id) }}
+    permissions:
+      actions: write
+      checks: write
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - *checkout-demo
+      - *checkout-sutura
+      - *setup-pnpm
+      - *setup-node
+      - *validate-inputs
+      - *prepare-package
+      - name: Materialize the exact Action fixture
+        env:
+          CASE_ID: ${{ inputs.case-id }}
+          CONTROLLER_ID: ${{ inputs.controller-id }}
+        run: node scripts/materialize-matrix-case.mjs "$CASE_ID"
+      - name: Commit and push the controller-owned broken branch
+        id: fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CASE_ID: ${{ inputs.case-id }}
+          CONTROLLER_ID: ${{ inputs.controller-id }}
+        run: |
+          branch="matrix/${CONTROLLER_ID}/${CASE_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          git switch -c "$branch"
+          git add -A
+          git commit -m "test(matrix): materialize ${CASE_ID}"
+          git push --set-upstream origin "$branch"
+          source_pr=""
+          if [ "$CASE_ID" = javascript-repair ] || [ "$CASE_ID" = python-repair ]; then
+            source_pr="$(gh pr create --base main --head "$branch" --title "matrix: ${CASE_ID}" --body "Controller-owned external matrix fixture.")"
+          fi
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "branch=$branch"
+            echo "source-pr=$source_pr"
+          } >> "$GITHUB_OUTPUT"
+      - name: Dispatch and prove red fixture CI
+        id: failed-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CASE_ID: ${{ inputs.case-id }}
+          BRANCH: ${{ steps.fixture.outputs.branch }}
+        run: |
+          url="$(gh workflow run matrix-fixture-ci.yml --ref "$BRANCH" -f case-id="$CASE_ID")"
+          run_id="${url##*/}"
+          if gh run watch "$run_id" --exit-status; then
+            echo "Expected matrix fixture CI to fail" >&2
+            exit 1
+          fi
+          test "$(gh run view "$run_id" --json conclusion --jq .conclusion)" = failure
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Repair or classify the exact failed run
+        id: sutura
+        continue-on-error: true
+        uses: ./.sutura-action/packages/action
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.failed-ci.outputs.run-id }}
+          nebius-api-key: ${{ secrets.NEBIUS_API_KEY }}
+          tavily-api-key: ${{ secrets.TAVILY_API_KEY }}
+          contree-token: ${{ secrets.CONTREE_TOKEN }}
+          contree-project: ${{ vars.CONTREE_PROJECT }}
+          capture-replay: 'true'
+          runtime: ${{ startsWith(inputs.case-id, 'python-') && 'python' || 'node' }}
+      - name: Download direct Action evidence
+        id: direct
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ steps.failed-ci.outputs.run-id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/replay"
+          for _ in $(seq 1 12); do
+            if gh run download "$GITHUB_RUN_ID" --name "sutura-replay-${CI_RUN_ID}.json" --dir "$RUNNER_TEMP/replay"; then break; fi
+            sleep 5
+          done
+          replay="$(find "$RUNNER_TEMP/replay" -type f -name '*.json' -print -quit)"
+          test -n "$replay"
+          repair_pr="$(gh pr list --head "sutura/fix-${CI_RUN_ID}" --state all --json url --jq '.[0].url // ""')"
+          echo "replay=$replay" >> "$GITHUB_OUTPUT"
+          echo "repair-pr=$repair_pr" >> "$GITHUB_OUTPUT"
+      - name: Collect public-safe Action evidence
+        env:
+          MODE: ${{ inputs.mode }}
+          ACTION_SHA: ${{ inputs.action-sha }}
+          DEMO_SHA: ${{ inputs.demo-sha }}
+          CONTROLLER_ID: ${{ inputs.controller-id }}
+          FIXTURE_SHA: ${{ steps.fixture.outputs.sha }}
+          SETUP_MS: ${{ steps.package.outputs.setup-duration-ms }}
+          ACTION_OUTCOME: ${{ steps.sutura.outputs.outcome }}
+          CI_RUN_ID: ${{ steps.failed-ci.outputs.run-id }}
+          REPAIR_PR: ${{ steps.direct.outputs.repair-pr }}
+          SOURCE_PR: ${{ steps.fixture.outputs.source-pr }}
+          BRANCH: ${{ steps.fixture.outputs.branch }}
+        run: |
+          node scripts/collect-matrix-evidence.mjs --metadata .matrix-case.json --package-evidence "$RUNNER_TEMP/package-evidence.json" --replay "${{ steps.direct.outputs.replay }}" --mode "$MODE" --action-sha "$ACTION_SHA" --demo-sha "$DEMO_SHA" --demo-run-id "$GITHUB_RUN_ID" --controller-id "$CONTROLLER_ID" --fixture-commit "$FIXTURE_SHA" --setup-duration-ms "$SETUP_MS" --action-outcome "$ACTION_OUTCOME" --ci-run-id "$CI_RUN_ID" --pull-request-url "$REPAIR_PR" --source-pull-request-url "$SOURCE_PR" --cleanup-branch "$BRANCH" --output "$RUNNER_TEMP/matrix-case.json"
+      - *upload-evidence

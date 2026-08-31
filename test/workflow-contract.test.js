@@ -33,4 +33,24 @@ describe('GitHub workflow contract', () => {
     expect(workflow).not.toMatch(/^\s*schedule:/m);
     expect(workflow.match(/failure:/g)).toHaveLength(4);
   });
+
+  test('runs the bounded external matrix with exact identities and scoped permissions', async () => {
+    const matrix = await readWorkflow('matrix-case.yml');
+    const fixture = await readWorkflow('matrix-fixture-ci.yml');
+    const ci = await readWorkflow('ci.yml');
+    expect(matrix).toContain('demo-sha:');
+    expect(matrix).toContain('action-sha:');
+    expect(matrix).toContain('controller-id:');
+    expect(matrix).toContain('uses: ./.sutura-action/packages/action');
+    expect(matrix).toContain('contents: read');
+    expect(matrix).toContain('pull-requests: write');
+    expect(matrix).toContain('checks: write');
+    expect(matrix).not.toContain('repository: ${{');
+    expect(matrix).not.toContain('command:');
+    expect(fixture).toContain('permissions:\n  contents: read');
+    expect(fixture).toContain('workflow_dispatch:');
+    expect(ci).toContain('branches: [main]');
+    const monitor = await readWorkflow('sutura.yml');
+    expect(monitor).toContain("!startsWith(github.event.workflow_run.head_branch, 'matrix/')");
+  });
 });

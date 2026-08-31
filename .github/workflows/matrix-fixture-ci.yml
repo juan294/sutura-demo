@@ -1,0 +1,43 @@
+name: Matrix fixture CI
+run-name: Matrix fixture CI ${{ inputs.case-id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      case-id:
+        description: Exact matrix case ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate committed case identity
+        env:
+          CASE_ID: ${{ inputs.case-id }}
+        run: |
+          node -e 'const m=require("./.matrix-case.json"); if(m.caseId!==process.env.CASE_ID) process.exit(1)'
+      - uses: pnpm/action-setup@v5
+        if: ${{ !startsWith(inputs.case-id, 'python-') }}
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v6
+        if: ${{ !startsWith(inputs.case-id, 'python-') }}
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install JavaScript fixture
+        if: ${{ !startsWith(inputs.case-id, 'python-') }}
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Run JavaScript fixture
+        if: ${{ !startsWith(inputs.case-id, 'python-') }}
+        run: pnpm test
+      - name: Run Python fixture
+        if: ${{ startsWith(inputs.case-id, 'python-') }}
+        run: python3 -B -m unittest discover -s tests -p 'test_*.py'
