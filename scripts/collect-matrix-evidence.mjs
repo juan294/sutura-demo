@@ -38,18 +38,25 @@ function roundedUsd(value) {
   return Math.round((value + Number.EPSILON) * 1_000_000) / 1_000_000;
 }
 
-function responseJson(exchange) {
-  const body = exchange?.response?.body;
-  if (body?.raw !== true || body.encoding !== 'base64' || typeof body.data !== 'string') {
-    throw new Error('Replay contains an invalid provider response body');
+function recordedBodyText(body) {
+  if (body?.raw === true && body.encoding === 'base64' && typeof body.data === 'string') {
+    return Buffer.from(body.data, 'base64').toString('utf8');
   }
-  return JSON.parse(Buffer.from(body.data, 'base64').toString('utf8'));
+  if (typeof body === 'string') return body;
+  return JSON.stringify(body ?? '');
+}
+
+function responseJson(exchange) {
+  try { return JSON.parse(recordedBodyText(exchange?.response?.body)); }
+  catch { throw new Error('Replay contains an invalid provider response body'); }
 }
 
 export function costsFromReplay(bundle) {
   let inferenceCostUsd = 0;
+  let inferenceCalls = 0;
   for (const exchange of bundle?.http ?? []) {
     if (exchange?.boundary !== 'nebius') continue;
+    inferenceCalls += 1;
     const response = responseJson(exchange);
     const price = MODEL_PRICES.get(response.model);
     const prompt = response.usage?.prompt_tokens;
@@ -60,6 +67,7 @@ export function costsFromReplay(bundle) {
     }
     inferenceCostUsd += roundedUsd((prompt * price.input + completion * price.output) / 1_000_000);
   }
+  if (inferenceCalls === 0) throw new Error('Replay contains no provider usage evidence');
   const sandboxCostUsd = (bundle?.executor ?? []).reduce((sum, operation) => {
     const cost = operation?.result?.metrics?.cost;
     if (cost === undefined) return sum;
@@ -75,7 +83,7 @@ function operationIds(bundle) {
   const values = new Set();
   for (const exchange of bundle?.http ?? []) {
     if (exchange?.boundary !== 'contree') continue;
-    const text = JSON.stringify(exchange.response?.body ?? '');
+    const text = recordedBodyText(exchange.response?.body);
     for (const match of text.matchAll(/[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/giu)) {
       values.add(`contree:${match[0]}`);
     }
@@ -98,7 +106,15 @@ export async function collectMatrixEvidence(input) {
     actualOutcome = audit.outcome === 'audit-approved' && metadata.expectedOutcome === 'audit-approved'
       ? 'audit-approved' : audit.outcome === 'audit-refused' ? 'refused' : audit.outcome;
     auditApproved = audit.audit?.approved === true;
-    inferenceCostUsd = (audit.cost?.entries ?? []).reduce((sum, entry) => sum + (entry.usd ?? 0), 0);
+    if (!Array.isArray(audit.cost?.entries) || audit.cost.entries.length === 0) {
+      throw new Error('Audit result contains no provider usage evidence');
+    }
+    inferenceCostUsd = audit.cost.entries.reduce((sum, entry) => {
+      if (typeof entry?.usd !== 'number' || !Number.isFinite(entry.usd) || entry.usd < 0) {
+        throw new Error('Audit result contains invalid provider usage evidence');
+      }
+      return sum + entry.usd;
+    }, 0);
     sandboxCostUsd = 0;
   } else {
     actualOutcome = input.actionOutcome;
@@ -113,6 +129,8 @@ export async function collectMatrixEvidence(input) {
     ...(input.ciRunId ? [`https://github.com/juan294/sutura-demo/actions/runs/${input.ciRunId}`] : []),
     ...(input.sourcePullRequestUrl ? [input.sourcePullRequestUrl] : []),
     ...(input.pullRequestUrl ? [input.pullRequestUrl] : []),
+    ...(input.checkUrl ? [input.checkUrl] : []),
+    ...(input.caseArtifactUrl ? [input.caseArtifactUrl] : []),
   ];
   const evidence = { stages, links, inferenceCostUsd, sandboxCostUsd };
   const result = {
@@ -168,6 +186,8 @@ if (resolve(process.argv[1] ?? '') === resolve(import.meta.filename)) {
     pullRequestUrl: valueAfter('--pull-request-url'),
     sourcePullRequestUrl: valueAfter('--source-pull-request-url'),
     cleanupBranch: valueAfter('--cleanup-branch'),
+    checkUrl: valueAfter('--check-url'),
+    caseArtifactUrl: valueAfter('--case-artifact-url'),
     outputPath: valueAfter('--output'),
   });
 }

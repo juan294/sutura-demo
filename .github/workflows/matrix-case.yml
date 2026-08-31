@@ -219,6 +219,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ steps.failed-ci.outputs.run-id }}
+          FIXTURE_SHA: ${{ steps.fixture.outputs.sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/replay"
           for _ in $(seq 1 12); do
@@ -228,8 +229,16 @@ jobs:
           replay="$(find "$RUNNER_TEMP/replay" -type f -name '*.json' -print -quit)"
           test -n "$replay"
           repair_pr="$(gh pr list --head "sutura/fix-${CI_RUN_ID}" --state all --json url --jq '.[0].url // ""')"
-          echo "replay=$replay" >> "$GITHUB_OUTPUT"
-          echo "repair-pr=$repair_pr" >> "$GITHUB_OUTPUT"
+          check_url="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${FIXTURE_SHA}/check-runs" --jq ".check_runs[] | select(.external_id == \"sutura:${GITHUB_REPOSITORY}:workflow-run:${CI_RUN_ID}\") | .html_url")"
+          case_artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" --jq ".artifacts[] | select(.name == \"sutura-case-file-${CI_RUN_ID}.html\") | .id")"
+          test -n "$check_url"
+          test -n "$case_artifact_id"
+          {
+            echo "replay=$replay"
+            echo "repair-pr=$repair_pr"
+            echo "check-url=$check_url"
+            echo "case-artifact-url=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts/${case_artifact_id}"
+          } >> "$GITHUB_OUTPUT"
       - name: Collect public-safe Action evidence
         env:
           MODE: ${{ inputs.mode }}
@@ -244,5 +253,5 @@ jobs:
           SOURCE_PR: ${{ steps.fixture.outputs.source-pr }}
           BRANCH: ${{ steps.fixture.outputs.branch }}
         run: |
-          node scripts/collect-matrix-evidence.mjs --metadata .matrix-case.json --package-evidence "$RUNNER_TEMP/package-evidence.json" --replay "${{ steps.direct.outputs.replay }}" --mode "$MODE" --action-sha "$ACTION_SHA" --demo-sha "$DEMO_SHA" --demo-run-id "$GITHUB_RUN_ID" --controller-id "$CONTROLLER_ID" --fixture-commit "$FIXTURE_SHA" --setup-duration-ms "$SETUP_MS" --action-outcome "$ACTION_OUTCOME" --ci-run-id "$CI_RUN_ID" --pull-request-url "$REPAIR_PR" --source-pull-request-url "$SOURCE_PR" --cleanup-branch "$BRANCH" --output "$RUNNER_TEMP/matrix-case.json"
+          node scripts/collect-matrix-evidence.mjs --metadata .matrix-case.json --package-evidence "$RUNNER_TEMP/package-evidence.json" --replay "${{ steps.direct.outputs.replay }}" --mode "$MODE" --action-sha "$ACTION_SHA" --demo-sha "$DEMO_SHA" --demo-run-id "$GITHUB_RUN_ID" --controller-id "$CONTROLLER_ID" --fixture-commit "$FIXTURE_SHA" --setup-duration-ms "$SETUP_MS" --action-outcome "$ACTION_OUTCOME" --ci-run-id "$CI_RUN_ID" --pull-request-url "$REPAIR_PR" --source-pull-request-url "$SOURCE_PR" --cleanup-branch "$BRANCH" --check-url "${{ steps.direct.outputs.check-url }}" --case-artifact-url "${{ steps.direct.outputs.case-artifact-url }}" --output "$RUNNER_TEMP/matrix-case.json"
       - *upload-evidence
