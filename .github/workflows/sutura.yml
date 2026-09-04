@@ -26,12 +26,13 @@ jobs:
       ${{
         github.event_name == 'workflow_dispatch' ||
         (github.event.workflow_run.conclusion == 'failure' &&
-          !startsWith(github.event.workflow_run.head_branch, 'matrix/'))
+          !startsWith(github.event.workflow_run.head_branch, 'matrix/') &&
+          !startsWith(github.event.workflow_run.head_branch, 'case-lab/'))
       }}
     runs-on: ubuntu-latest
     steps:
       - name: Repair the exact failed CI run
-        uses: juan294/sutura/packages/action@b2ee9e0435b8db235030e25b2c7a350cc83131bc
+        uses: juan294/sutura/packages/action@a943ded4c734aed75c5c63f2b2dd63a2f44556c2
         with:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id || inputs.run_id }}

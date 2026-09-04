@@ -9,7 +9,7 @@ describe('GitHub workflow contract', () => {
   test('pins the package action and supports exact-run retries', async () => {
     const workflow = await readWorkflow('sutura.yml');
     expect(workflow).toContain(
-      'uses: juan294/sutura/packages/action@b2ee9e0435b8db235030e25b2c7a350cc83131bc',
+      'uses: juan294/sutura/packages/action@a943ded4c734aed75c5c63f2b2dd63a2f44556c2',
     );
     expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain("run-id: ${{ github.event.workflow_run.id || inputs.run_id }}");
