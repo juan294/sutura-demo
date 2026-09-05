@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "sutura-demo-matrix-case-v1",
+  "caseId": "javascript-flake",
+  "fixtureId": "flaky-timer-race",
+  "language": "javascript",
+  "expectedOutcome": "flaky-no-patch",
+  "execution": "action",
+  "testCommand": "pnpm test",
+  "replacedPaths": [
+    "src",
+    "test",
+    "tests",
+    "vendor",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "pyproject.toml",
+    "uv.lock",
+    "tsconfig.json",
+    ".npmrc",
+    ".sutura.json",
+    ".matrix-case.json",
+    ".matrix-candidate.diff",
+    "vitest.config.mjs"
+  ]
+}
