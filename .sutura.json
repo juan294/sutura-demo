@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "runtime": "node",
+  "allowedPaths": [
+    "docs/**"
+  ],
+  "protectedPaths": [
+    ".sutura.json"
+  ],
+  "deniedReadPaths": [],
+  "maxDiffBytes": 65536,
+  "maxChangedFiles": 8,
+  "requiredCommands": [
+    "pnpm test"
+  ],
+  "resourceLimits": {}
+}
