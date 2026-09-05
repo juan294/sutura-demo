@@ -96,6 +96,8 @@ export async function collectMatrixEvidence(input) {
   const packageEvidence = JSON.parse(await readFile(input.packageEvidencePath, 'utf8'));
   const packageContentHash = findKey(packageEvidence, 'packageContentHash');
   if (!/^[a-f0-9]{64}$/u.test(packageContentHash ?? '')) throw new Error('Package evidence has no content hash');
+  const packageVersion = findKey(packageEvidence, 'packageVersion');
+  if (!/^\d+\.\d+\.\d+$/u.test(packageVersion ?? '')) throw new Error('Package evidence has no package version');
   let actualOutcome;
   let auditApproved;
   let inferenceCostUsd;
@@ -141,7 +143,7 @@ export async function collectMatrixEvidence(input) {
     expectedOutcome: metadata.expectedOutcome,
     actualOutcome,
     auditApproved,
-    packageVersion: '0.2.0',
+    packageVersion,
     packageMode: input.mode,
     packageContentHash,
     actionCommit: input.actionSha,

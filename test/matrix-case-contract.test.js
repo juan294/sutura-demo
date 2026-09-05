@@ -87,6 +87,7 @@ describe('external matrix case contract', () => {
     }));
     await writeFile(packageEvidencePath, JSON.stringify({
       packageContentHash: '9'.repeat(64),
+      packageVersion: '0.2.1',
     }));
     await writeFile(auditPath, JSON.stringify({
       outcome: 'audit-approved', audit: { approved: true },
@@ -99,6 +100,7 @@ describe('external matrix case contract', () => {
       outputPath,
     });
     expect(result.actualOutcome).toBe('audit-approved');
+    expect(result.packageVersion).toBe('0.2.1');
     expect(result.inferenceCostUsd).toBe(0.01);
     expect(result.stages).toEqual([]);
     expect(JSON.parse(await readFile(outputPath, 'utf8'))).toEqual(result);
