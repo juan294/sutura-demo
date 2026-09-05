@@ -3,5 +3,5 @@
  * @param {number} code
  */
 export function statusFor(code) {
-  return code >= 500 ? 'retry' : 'stop';
+  return code > 503 ? 'retry' : 'stop';
 }
