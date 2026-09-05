@@ -1,1 +1,1 @@
-export function pageCount(items, size) { return Math.floor(items / size) + 1; }
+export function pageCount(items, size) { return Math.floor((items - 1) / size) + 1; }
