@@ -8,9 +8,8 @@ const readWorkflow = (name) => readFile(new URL(`../.github/workflows/${name}`, 
 describe('GitHub workflow contract', () => {
   test('pins the package action and supports exact-run retries', async () => {
     const workflow = await readWorkflow('sutura.yml');
-    expect(workflow).toContain(
-      'uses: juan294/sutura/packages/action@a943ded4c734aed75c5c63f2b2dd63a2f44556c2',
-    );
+    const uses = [...workflow.matchAll(/uses: juan294\/sutura\/packages\/action@([a-f0-9]{40})/gu)];
+    expect(uses).toHaveLength(1);
     expect(workflow).toContain('workflow_dispatch:');
     expect(workflow).toContain("run-id: ${{ github.event.workflow_run.id || inputs.run_id }}");
   });

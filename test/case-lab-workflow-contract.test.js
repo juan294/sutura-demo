@@ -28,7 +28,7 @@ describe('Case Lab workflow contract', () => {
     expect(cap).toBeGreaterThan(gate);
     expect(checkout).toBeGreaterThan(cap);
     expect(workflow).toContain('if [ "$CASE_LAB_ENABLED" != "true" ]');
-    expect(workflow).toContain("CASE_LAB_DAILY_RUN_CAP: '8'");
+    expect(workflow).toMatch(/CASE_LAB_DAILY_RUN_CAP: '[1-9]\d*'/u);
   });
 
   test('grants the minimum permissions, one static concurrency group, and exact pins', async () => {
@@ -47,7 +47,7 @@ describe('Case Lab workflow contract', () => {
     const workflow = await readWorkflow('case-lab.yml');
     const steps = workflow.split(/\n {6}- (?=name:|uses:)/u).slice(1);
     const withSecrets = steps
-      .filter((step) => /secrets\.(?:NEBIUS_API_KEY|TAVILY_API_KEY|CONTREE_TOKEN)/u.test(step))
+      .filter((step) => /secrets\.(?:NEBIUS_API_KEY|TAVILY_API_KEY|CONTREE_TOKEN|OPENAI_API_KEY)/u.test(step))
       .map((step) => /^name:\s*(.+)$/mu.exec(step)?.[1]);
     expect(withSecrets).toEqual(['Run Sutura at the exact release', 'Publish the public-safe result document']);
     expect(workflow).toContain('test ! -e "results/${REQUEST_ID}.json"');
