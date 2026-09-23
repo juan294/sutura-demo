@@ -4,5 +4,5 @@
  * @param {number} size
  */
 export function pageCount(items, size) {
-  return Math.floor(items / size) + 1;
+  return items % size === 0 ? items / size : Math.floor(items / size) + 1;
 }
