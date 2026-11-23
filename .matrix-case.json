@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "sutura-demo-matrix-case-v1",
+  "caseId": "python-repair",
+  "fixtureId": "python-repair-missing-await",
+  "language": "python",
+  "expectedOutcome": "fixed",
+  "execution": "action",
+  "sourcePullRequest": true,
+  "testCommand": "python -m unittest",
+  "replacedPaths": [
+    "src",
+    "test",
+    "tests",
+    "vendor",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "pyproject.toml",
+    "uv.lock",
+    "tsconfig.json",
+    ".npmrc",
+    ".sutura.json",
+    ".matrix-case.json",
+    ".matrix-candidate.diff",
+    "vitest.config.mjs"
+  ]
+}
