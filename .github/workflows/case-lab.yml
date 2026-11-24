@@ -182,11 +182,19 @@ jobs:
             url="$(gh workflow run ci.yml --ref "$BRANCH")"
           fi
           run_id="${url##*/}"
-          if gh run watch "$run_id" --exit-status; then
-            echo "Expected the injected ${CASE_ID} case to fail CI" >&2
+          # GitHub can answer 404 for a run it has just created (run 45111714406), which ends the watch
+          # early. Only a recorded conclusion ends this loop; only `failure` passes.
+          conclusion=""
+          for _ in $(seq 1 12); do
+            gh run watch "$run_id" || true
+            conclusion="$(gh run view "$run_id" --json conclusion --jq .conclusion || true)"
+            if [ -n "$conclusion" ]; then break; fi
+            sleep 5
+          done
+          if [ "$conclusion" != failure ]; then
+            echo "Expected the injected ${CASE_ID} case to fail CI; run ${run_id} concluded '${conclusion:-unavailable}'" >&2
             exit 1
           fi
-          test "$(gh run view "$run_id" --json conclusion --jq .conclusion)" = failure
           echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
           echo "run-url=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >> "$GITHUB_OUTPUT"
 
